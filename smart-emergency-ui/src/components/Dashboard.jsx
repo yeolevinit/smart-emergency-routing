@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Activity, Navigation2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { MapPin, Clock, Activity, Navigation2, ShieldAlert, CheckCircle2, Download, Terminal } from 'lucide-react';
 import apiClient from '../api/client';
 import { cn } from '../utils/cn';
 import MapVisualizer from './MapVisualizer';
@@ -13,19 +13,26 @@ const Dashboard = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Fetch valid starting nodes when the dashboard loads
+    // NEW FEATURE: Telemetry Log
+    const [dispatchLog, setDispatchLog] = useState([]);
+
     useEffect(() => {
         const fetchLocations = async () => {
             try {
                 const response = await apiClient.get('/locations');
                 setLocations(response.data.data);
+                addLogEntry("System Map Synchronized. Ready for routing.");
             } catch (err) {
-                console.error("Failed to fetch locations", err);
                 setError("CRITICAL: Unable to synchronize map data with server.");
             }
         };
         fetchLocations();
     }, []);
+
+    const addLogEntry = (message) => {
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        setDispatchLog(prev => [{ time: timestamp, msg: message }, ...prev].slice(0, 5)); // Keep last 5 logs
+    };
 
     const handleOptimize = async () => {
         if (!selectedLocation) {
@@ -36,32 +43,61 @@ const Dashboard = () => {
         setIsLoading(true);
         setError('');
         setRouteData(null);
+        addLogEntry(`Initiating Dijkstra Sequence from Sector ${selectedLocation}...`);
 
         try {
             const response = await apiClient.post('/optimize-route', {
                 ambulance_location: selectedLocation
             });
             setRouteData(response.data.data);
+            addLogEntry(`SUCCESS: Route locked to ${response.data.data.optimal_hospital.name}.`);
         } catch (err) {
             setError(err.response?.data?.message || "Routing Engine Failure.");
+            addLogEntry(`ERROR: Routing failed from Sector ${selectedLocation}.`);
         } finally {
             setIsLoading(false);
         }
     };
 
-    // Animation variants for staggered card loading
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        show: {
-            opacity: 1,
-            transition: { staggerChildren: 0.15 }
-        }
+    // NEW FEATURE: Export Dispatch Manifest
+    const handleExportManifest = () => {
+        if (!routeData) return;
+
+        const timestamp = new Date().toLocaleString();
+        const manifestContent = `
+=========================================
+S.E.R.S. OFFICIAL DISPATCH MANIFEST
+=========================================
+TIMESTAMP: ${timestamp}
+ORIGIN SECTOR: ${routeData.ambulance_start_node}
+TARGET FACILITY: ${routeData.optimal_hospital.name} (Facility ID: ${routeData.optimal_hospital.id})
+
+-- ROUTING METRICS --
+Estimated Travel Time: ${routeData.metrics.travel_time_mins} mins
+Expected Wait Time: ${routeData.metrics.waiting_time_mins} mins
+TOTAL RESPONSE TIME: ${routeData.metrics.total_response_time_mins} mins
+
+-- NAVIGATIONAL SEQUENCE --
+PATH: ${routeData.route_nodes.join(' -> ')}
+
+=========================================
+CONFIDENTIAL - AUTHORIZED PERSONNEL ONLY
+=========================================
+        `;
+
+        const blob = new Blob([manifestContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `SERS_Manifest_${routeData.ambulance_start_node}_to_${routeData.optimal_hospital.id}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        addLogEntry("Dispatch Manifest exported to local encrypted storage.");
     };
 
-    const cardVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 120 } }
-    };
+    const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.15 } } };
+    const cardVariants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 120 } } };
 
     return (
         <div className="w-full h-full flex flex-col lg:flex-row gap-6">
@@ -69,7 +105,7 @@ const Dashboard = () => {
             {/* LEFT PANEL: Control Terminal */}
             <div className="w-full lg:w-1/3 flex flex-col gap-6">
 
-                {/* 1. Routing Controls */}
+                {/* Routing Controls */}
                 <div className="glass-card p-6 rounded-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-accent/5 rounded-full blur-[50px]" />
 
@@ -87,9 +123,7 @@ const Dashboard = () => {
 
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-xs text-neutral-400 uppercase tracking-widest mb-2">
-                                Select Ambulance Sector
-                            </label>
+                            <label className="block text-xs text-neutral-400 uppercase tracking-widest mb-2">Select Ambulance Sector</label>
                             <select
                                 value={selectedLocation}
                                 onChange={(e) => setSelectedLocation(e.target.value)}
@@ -103,31 +137,44 @@ const Dashboard = () => {
                         </div>
 
                         <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleOptimize}
-                            disabled={isLoading || locations.length === 0}
+                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                            onClick={handleOptimize} disabled={isLoading || locations.length === 0}
                             className={cn(
                                 "w-full py-4 mt-4 rounded-xl font-bold tracking-widest transition-all duration-300 flex items-center justify-center gap-2",
-                                isLoading || locations.length === 0
-                                    ? "bg-obsidian-700 text-neutral-500 cursor-not-allowed"
-                                    : "bg-emerald-accent text-black hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                                isLoading || locations.length === 0 ? "bg-obsidian-700 text-neutral-500 cursor-not-allowed" : "bg-emerald-accent text-black hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                             )}
                         >
-                            {isLoading ? (
-                                <span className="animate-pulse">CALCULATING TRAJECTORY...</span>
-                            ) : (
-                                <>
-                                    <Activity className="w-5 h-5" />
-                                    ENGAGE ALGORITHM
-                                </>
-                            )}
+                            {isLoading ? <span className="animate-pulse">CALCULATING TRAJECTORY...</span> : <><Activity className="w-5 h-5" /> ENGAGE ALGORITHM</>}
                         </motion.button>
                     </div>
                 </div>
 
-                {/* 2. THE NEW REAL-TIME SIMULATOR */}
+                {/* Real-Time Simulator */}
                 <CapacitySimulator />
+
+                {/* NEW FEATURE: Live Telemetry Log */}
+                <div className="glass-card p-4 rounded-2xl border-obsidian-700">
+                    <div className="flex items-center gap-2 mb-3 border-b border-obsidian-700 pb-2">
+                        <Terminal className="text-neutral-400 w-4 h-4" />
+                        <h3 className="text-xs font-bold text-neutral-400 tracking-widest uppercase">Live Telemetry</h3>
+                    </div>
+                    <div className="space-y-2 font-mono text-[11px] h-32 overflow-hidden flex flex-col justify-end">
+                        <AnimatePresence initial={false}>
+                            {dispatchLog.map((log, index) => (
+                                <motion.div
+                                    key={index + log.time}
+                                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                                    className="flex gap-2"
+                                >
+                                    <span className="text-obsidian-600 shrink-0">[{log.time}]</span>
+                                    <span className={log.msg.includes("ERROR") ? "text-alert-red" : log.msg.includes("SUCCESS") ? "text-emerald-accent" : "text-neutral-300"}>
+                                        {log.msg}
+                                    </span>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
 
             </div>
 
@@ -151,20 +198,25 @@ const Dashboard = () => {
 
                 <AnimatePresence>
                     {routeData && !isLoading && (
-                        <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="show"
-                            className="w-full h-full flex flex-col"
-                        >
+                        <motion.div variants={containerVariants} initial="hidden" animate="show" className="w-full h-full flex flex-col">
+
                             <div className="flex items-center justify-between mb-8 border-b border-obsidian-700 pb-4">
                                 <div>
                                     <h2 className="text-2xl font-bold text-white">Optimal Target Locked</h2>
                                     <p className="text-sm text-emerald-accent tracking-widest uppercase mt-1">Route Authorized</p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right flex flex-col items-end">
                                     <p className="text-xs text-neutral-500 uppercase">Target Facility</p>
-                                    <p className="text-xl font-bold text-white">{routeData.optimal_hospital.name}</p>
+                                    <p className="text-xl font-bold text-white mb-2">{routeData.optimal_hospital.name}</p>
+
+                                    {/* NEW FEATURE: EXPORT MANIFEST BUTTON */}
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                        onClick={handleExportManifest}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-obsidian-800 border border-obsidian-600 hover:border-emerald-accent hover:text-emerald-accent text-neutral-400 text-xs rounded-md transition-colors"
+                                    >
+                                        <Download className="w-3 h-3" /> EXPORT MANIFEST
+                                    </motion.button>
                                 </div>
                             </div>
 
@@ -200,16 +252,10 @@ const Dashboard = () => {
                                                 index === 0 ? "bg-obsidian-800 border-neutral-500 text-white" :
                                                     index === routeData.route_nodes.length - 1 ? "bg-emerald-accent/20 border-emerald-accent text-emerald-accent shadow-[0_0_10px_rgba(16,185,129,0.3)]" :
                                                         "bg-obsidian-800 border-obsidian-600 text-neutral-300"
-                                            )}>
-                                                {node}
-                                            </div>
+                                            )}>{node}</div>
                                             {index < routeData.route_nodes.length - 1 && (
                                                 <div className="h-0.5 w-8 bg-obsidian-600 relative">
-                                                    <motion.div
-                                                        className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-accent shadow-[0_0_5px_rgba(16,185,129,0.8)]"
-                                                        animate={{ left: ["0%", "100%"] }}
-                                                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                                                    />
+                                                    <motion.div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-accent shadow-[0_0_5px_rgba(16,185,129,0.8)]" animate={{ left: ["0%", "100%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }} />
                                                 </div>
                                             )}
                                         </React.Fragment>
@@ -217,7 +263,7 @@ const Dashboard = () => {
                                 </div>
                             </motion.div>
 
-                            {/* THE NEW TACTICAL RADAR MAP */}
+                            {/* TACTICAL RADAR MAP */}
                             <motion.div variants={cardVariants} className="flex-grow w-full h-[400px]">
                                 <MapVisualizer activeRoute={routeData.route_nodes} />
                             </motion.div>
