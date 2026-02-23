@@ -1,30 +1,43 @@
-# app/controllers/routing_controller.py
-
 from flask import Blueprint, request, jsonify
 from app.services.routing_service import RoutingService
 from app.utils.mock_data import get_mock_city_graph, get_mock_hospitals
 
-# Initialize the Flask Blueprint
+# 1. Initialize the Flask Blueprint
 routing_bp = Blueprint('routing', __name__, url_prefix='/api/v1')
 
-# Initialize data and service (In a real app, this would query a database)
+# 2. Initialize data and service
 city = get_mock_city_graph()
 hospitals = get_mock_hospitals()
 routing_service = RoutingService(city_graph=city, hospitals=hospitals)
 
+# 3. Define the API Endpoint
 @routing_bp.route('/optimize-route', methods=['POST'])
 def optimize_route():
-    """
-    POST endpoint for React to request the optimal route.
-    Expected JSON payload: {"ambulance_location": "A"}
-    """
     try:
+        # force=True forces Flask to parse JSON even if the Content-Type header is missing
+        # silent=True prevents it from crashing if the JSON is completely broken
         data = request.get_json()
+        print("Incoming Data:", data)
         
-        if not data or 'ambulance_location' not in data:
-            return jsonify({"status": "error", "message": "Missing 'ambulance_location' in request body."}), 400
+        # Fallback: If Postman sent it as Form Data instead of Raw JSON
+        if data is None:
+            data = request.form.to_dict()
+
+        # If it is STILL empty, the user literally sent nothing.
+        if not data:
+            return jsonify({
+                "status": "error", 
+                "message": "No data received. Please send RAW JSON exactly like this: {\"ambulance_location\": \"A\"}"
+            }), 400
             
-        ambulance_location = data['ambulance_location'].upper()
+        if 'ambulance_location' not in data:
+            return jsonify({
+                "status": "error", 
+                "message": "Missing 'ambulance_location'. Payload must be exactly: {\"ambulance_location\": \"A\"}"
+            }), 400
+            
+        # Clean the input (remove spaces, make uppercase)
+        ambulance_location = str(data['ambulance_location']).strip().upper()
         
         # Call the Decision Engine
         result = routing_service.find_optimal_hospital(ambulance_location)
@@ -37,5 +50,4 @@ def optimize_route():
     except ValueError as ve:
         return jsonify({"status": "error", "message": str(ve)}), 404
     except Exception as e:
-        # Catch-all for unexpected server errors to prevent crashing
         return jsonify({"status": "error", "message": f"An internal server error occurred: {str(e)}"}), 500
