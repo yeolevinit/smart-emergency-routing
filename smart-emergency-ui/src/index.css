@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* No blue, no purple. Strictly tactical monochrome and alert colors. */
+  --color-obsidian-900: #050505;
+  --color-obsidian-800: #121212;
+  --color-obsidian-700: #262626;
+
+  --color-emerald-accent: #10b981;
+  /* Success / Optimal Route */
+  --color-emerald-glow: rgba(16, 185, 129, 0.4);
+
+  --color-alert-red: #ef4444;
+  /* High Wait Time / Full Capacity */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-obsidian-900);
+    color: #e5e5e5;
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  ::selection {
+    background-color: var(--color-emerald-accent);
+    color: #000;
+  }
+}
+
+/* Aceternity-style subtle grid background */
+@utility bg-grid-pattern {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@utility glass-card {
+  background: rgba(18, 18, 18, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-obsidian-700);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
