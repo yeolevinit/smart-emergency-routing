@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, Activity, Navigation2, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import apiClient from '../api/client';
 import { cn } from '../utils/cn';
-import MapVisualizer from './MapVisualizer'; // <-- Add this import
+import MapVisualizer from './MapVisualizer';
+import CapacitySimulator from './CapacitySimulator';
 
 const Dashboard = () => {
     const [locations, setLocations] = useState([]);
@@ -67,6 +68,8 @@ const Dashboard = () => {
 
             {/* LEFT PANEL: Control Terminal */}
             <div className="w-full lg:w-1/3 flex flex-col gap-6">
+
+                {/* 1. Routing Controls */}
                 <div className="glass-card p-6 rounded-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-accent/5 rounded-full blur-[50px]" />
 
@@ -122,7 +125,12 @@ const Dashboard = () => {
                         </motion.button>
                     </div>
                 </div>
+
+                {/* 2. THE NEW REAL-TIME SIMULATOR */}
+                <CapacitySimulator />
+
             </div>
+
 
             {/* RIGHT PANEL: Data Visualization */}
             <div className="w-full lg:w-2/3 glass-card rounded-2xl p-6 min-h-[500px] flex flex-col relative overflow-hidden">
@@ -181,7 +189,6 @@ const Dashboard = () => {
                                 </motion.div>
                             </div>
 
-                            {/* Route Path Visualizer */}
                             {/* Route Path Visualizer (Text) */}
                             <motion.div variants={cardVariants} className="bg-obsidian-900 border border-obsidian-700 rounded-xl p-5 mb-4">
                                 <p className="text-xs text-neutral-500 uppercase tracking-wider mb-4">Navigational Sequence</p>
@@ -224,6 +231,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-
-
