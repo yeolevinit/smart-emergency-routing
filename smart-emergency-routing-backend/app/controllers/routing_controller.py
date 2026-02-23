@@ -3,6 +3,7 @@
 from flask import Blueprint, request, jsonify
 from app.services.routing_service import RoutingService
 
+
 routing_bp = Blueprint('routing', __name__, url_prefix='/api/v1')
 
 # Initialize the service (It now builds itself securely from MongoDB)
