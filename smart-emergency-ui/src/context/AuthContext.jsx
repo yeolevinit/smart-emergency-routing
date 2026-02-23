@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import apiClient from '../api/client';
+import BootSequence from '../components/BootSequence';
 
 export const AuthContext = createContext();
 
@@ -48,7 +49,7 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={{ user, login, registerUser, logout, loading }}>
-            {!loading && children}
+            {loading ? <BootSequence /> : children}
         </AuthContext.Provider>
     );
 };
