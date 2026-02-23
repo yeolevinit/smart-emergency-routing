@@ -8,7 +8,7 @@ routing_bp = Blueprint('routing', __name__, url_prefix='/api/v1')
 # 2. Initialize data and service
 city = get_mock_city_graph()
 hospitals = get_mock_hospitals()
-routing_service = RoutingService(city_graph=city, hospitals=hospitals)
+routing_service = RoutingService(city_graph=city)
 
 # 3. Define the API Endpoint
 @routing_bp.route('/optimize-route', methods=['POST'])
@@ -17,7 +17,6 @@ def optimize_route():
         # force=True forces Flask to parse JSON even if the Content-Type header is missing
         # silent=True prevents it from crashing if the JSON is completely broken
         data = request.get_json()
-        print("Incoming Data:", data)
         
         # Fallback: If Postman sent it as Form Data instead of Raw JSON
         if data is None:

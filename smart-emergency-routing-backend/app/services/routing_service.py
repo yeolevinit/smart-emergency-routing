@@ -2,16 +2,35 @@
 
 from app.models.city_graph import CityGraph
 from app.models.hospital import Hospital
+from app.utils.db import get_db
 from typing import Dict, Any
 
 class RoutingService:
-    def __init__(self, city_graph: CityGraph, hospitals: Dict[str, Hospital]):
+    def __init__(self, city_graph: CityGraph):
         """
-        Injects the data models into the service.
-        This follows the Dependency Injection principle for easier testing.
+        Initializes the service with the city map and fetches LIVE hospital data from MongoDB.
         """
         self.city_graph = city_graph
-        self.hospitals = hospitals
+        self.hospitals = self._fetch_live_hospitals()
+
+    def _fetch_live_hospitals(self) -> Dict[str, Hospital]:
+        """Queries MongoDB and converts the raw data into Hospital class objects."""
+        db = get_db()
+        hospital_objects = {}
+        
+        # Fetch all records from the 'hospitals' collection
+        live_data = db.hospitals.find()
+        
+        for data in live_data:
+            hospital = Hospital(
+                hospital_id=data['hospital_id'],
+                name=data['name'],
+                capacity=data['capacity'],
+                current_occupancy=data['current_occupancy']
+            )
+            hospital_objects[data['hospital_id']] = hospital
+            
+        return hospital_objects
 
     def find_optimal_hospital(self, ambulance_location: str) -> Dict[str, Any]:
         """
