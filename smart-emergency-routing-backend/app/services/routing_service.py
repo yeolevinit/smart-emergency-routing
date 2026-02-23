@@ -3,25 +3,18 @@
 from app.models.city_graph import CityGraph
 from app.models.hospital import Hospital
 from app.utils.db import get_db
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 class RoutingService:
-    def __init__(self, city_graph: CityGraph):
-        """
-        Initializes the service with the city map and fetches LIVE hospital data from MongoDB.
-        """
-        self.city_graph = city_graph
+    def __init__(self):
+        """Initializes the service and fetches ALL data live from MongoDB."""
+        self.db = get_db()
         self.hospitals = self._fetch_live_hospitals()
+        self.city_graph = self._build_city_graph_from_db()
 
     def _fetch_live_hospitals(self) -> Dict[str, Hospital]:
-        """Queries MongoDB and converts the raw data into Hospital class objects."""
-        db = get_db()
         hospital_objects = {}
-        
-        # Fetch all records from the 'hospitals' collection
-        live_data = db.hospitals.find()
-        
-        for data in live_data:
+        for data in self.db.hospitals.find():
             hospital = Hospital(
                 hospital_id=data['hospital_id'],
                 name=data['name'],
@@ -29,48 +22,61 @@ class RoutingService:
                 current_occupancy=data['current_occupancy']
             )
             hospital_objects[data['hospital_id']] = hospital
-            
         return hospital_objects
 
+    def _build_city_graph_from_db(self) -> CityGraph:
+        city = CityGraph()
+        # Fetch nodes
+        nodes = [doc["node_id"] for doc in self.db.map_nodes.find()]
+        city.add_intersections(nodes)
+        
+        # Fetch edges
+        edges = [(doc["source"], doc["target"], doc["weight"]) for doc in self.db.map_edges.find()]
+        city.add_roads(edges)
+        
+        return city
+
+    def get_all_locations(self) -> List[str]:
+        """Returns all valid intersections for the frontend dropdown."""
+        return [doc["node_id"] for doc in self.db.map_nodes.find() if not doc["node_id"].startswith("H")]
+
+    def update_hospital_occupancy(self, hospital_id: str, new_occupancy: int) -> bool:
+        """Updates occupancy in DB to simulate real-time patient influx."""
+        result = self.db.hospitals.update_one(
+            {"hospital_id": hospital_id},
+            {"$set": {"current_occupancy": new_occupancy}}
+        )
+        # Refresh the local cache so the next calculation uses the new data
+        if result.modified_count > 0:
+            self.hospitals = self._fetch_live_hospitals()
+            return True
+        return False
+
     def find_optimal_hospital(self, ambulance_location: str) -> Dict[str, Any]:
-        """
-        Executes the core algorithm: Total Time = Travel Time + Waiting Time.
-        Returns the optimal route and hospital data.
-        """
         best_hospital = None
         min_total_time = float('inf')
         best_route = []
         travel_time_to_best = 0
         wait_time_at_best = 0
 
-        # Evaluate every hospital in the network
         for node_id, hospital in self.hospitals.items():
             try:
-                # 1. Calculate Shortest Travel Time (Dijkstra)
                 travel_time = self.city_graph.calculate_travel_time(ambulance_location, node_id)
-                
-                # 2. Calculate Expected Waiting Time (Capacity vs Occupancy)
                 waiting_time = hospital.calculate_waiting_time()
-                
-                # 3. Decision Logic: Calculate Total Time
                 total_time = travel_time + waiting_time
                 
-                # 4. Compare and update if this is the fastest option
                 if total_time < min_total_time:
                     min_total_time = total_time
                     best_hospital = hospital
                     best_route = self.city_graph.get_shortest_path(ambulance_location, node_id)
                     travel_time_to_best = travel_time
                     wait_time_at_best = waiting_time
-
             except ValueError:
-                # Skip if there's no path to this specific hospital
                 continue
 
         if not best_hospital:
             raise ValueError(f"Could not find a valid route from '{ambulance_location}' to any hospital.")
 
-        # Serialize the response for the React Frontend
         return {
             "ambulance_start_node": ambulance_location,
             "optimal_hospital": best_hospital.to_dict(),
