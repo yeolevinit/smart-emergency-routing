@@ -41,3 +41,35 @@
   border: 1px solid var(--color-obsidian-700);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
+
+/* ==========================================
+   REACT FLOW DARK THEME OVERRIDES
+   Forces the map controls to match our UI
+   ========================================== */
+.react-flow__controls {
+  background-color: var(--color-obsidian-800) !important;
+  border: 1px solid var(--color-obsidian-700) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--color-obsidian-700) !important;
+  fill: #a3a3a3 !important;
+  /* Silver icons */
+  transition: all 0.3s ease;
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--color-obsidian-700) !important;
+  fill: var(--color-emerald-accent) !important;
+  /* Glows green on hover */
+}
+
+/* Make the watermark in the bottom right less obnoxious */
+.react-flow__attribution {
+  background: transparent !important;
+  color: #404040 !important;
+}
