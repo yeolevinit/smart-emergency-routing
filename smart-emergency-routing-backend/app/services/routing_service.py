@@ -9,8 +9,48 @@ class RoutingService:
     def __init__(self):
         """Initializes the service and fetches ALL data live from MongoDB."""
         self.db = get_db()
+        self._seed_if_empty() # Ensure data exists for the service
         self.hospitals = self._fetch_live_hospitals()
         self.city_graph = self._build_city_graph_from_db()
+
+    def _seed_if_empty(self):
+        """Auto-populates the database if it's currently empty (e.g. fresh Mock DB)."""
+        if self.db.hospitals.count_documents({}) == 0:
+            print("Database is empty. Seeding initial data...")
+            
+            # 1. Seed Hospitals
+            self.db.hospitals.insert_many([
+                {"hospital_id": "H1", "name": "Central Med", "capacity": 50, "current_occupancy": 45},
+                {"hospital_id": "H2", "name": "City General", "capacity": 100, "current_occupancy": 20},
+                {"hospital_id": "H3", "name": "Northside Care", "capacity": 30, "current_occupancy": 29},
+                {"hospital_id": "H4", "name": "Southwest Clinic", "capacity": 40, "current_occupancy": 15}
+            ])
+            
+            # 2. Seed Nodes
+            self.db.map_nodes.insert_many([{"node_id": n} for n in ["A", "B", "C", "D", "E", "F", "H1", "H2", "H3", "H4"]])
+            
+            # 3. Seed Edges
+            self.db.map_edges.insert_many([
+                {"source": "A", "target": "B", "weight": 5.0}, {"source": "A", "target": "C", "weight": 8.0},
+                {"source": "B", "target": "D", "weight": 3.0}, {"source": "C", "target": "D", "weight": 4.0},
+                {"source": "C", "target": "E", "weight": 6.0}, {"source": "D", "target": "F", "weight": 7.0},
+                {"source": "E", "target": "F", "weight": 2.0}, {"source": "B", "target": "H1", "weight": 2.0},
+                {"source": "E", "target": "H2", "weight": 4.0}, {"source": "F", "target": "H3", "weight": 3.0},
+                {"source": "A", "target": "H4", "weight": 12.0}
+            ])
+
+            # 4. Seed a Default Test User (admin@example.com / password123)
+            from werkzeug.security import generate_password_hash
+            self.db.users.insert_one({
+                "username": "admin",
+                "email": "admin@example.com",
+                "password": generate_password_hash("password123")
+            })
+
+            print("Seeding complete. Test User: admin@example.com / password123")
+
+
+
 
     def _fetch_live_hospitals(self) -> Dict[str, Hospital]:
         hospital_objects = {}

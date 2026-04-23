@@ -36,5 +36,4 @@ python run.py      # Starts the API on port 5000
 \`\`\`bash
 cd smart-emergency-ui
 npm install
-npm run dev        # Starts the UI on port 5173
-\`\`\`
+npm run dev        # Starts the UI on port 51

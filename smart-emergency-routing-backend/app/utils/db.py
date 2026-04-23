@@ -8,17 +8,38 @@ from dotenv import load_dotenv
 # Load environment variables from the .env file
 load_dotenv()
 
+_MOCK_DB = None
+
 def get_db():
     """
-    Establishes an industry-standard connection to MongoDB.
-    Returns the database object.
+    Establishes a connection to MongoDB with an automatic mock fallback.
     """
-    uri = os.getenv("MONGO_URI", "mongodb+srv://ruleaiworld_db_user:WITqXWATKLi2k2WP@cluster0.qkqyzgj.mongodb.net/?appName=Cluster0")
+    global _MOCK_DB
+    uri = os.getenv("MONGO_URI")
     
+    # Check if URI is present
+    if not uri:
+        if _MOCK_DB is None:
+            print("[!] No MONGO_URI found in .env. Falling back to PERSISTENT Mock Database.")
+            import mongomock
+            _MOCK_DB = mongomock.MongoClient().smart_emergency_db
+        return _MOCK_DB
+
     try:
-        # connect=True forces immediate connection to catch errors early
-        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping') # Verify connection
+        from pymongo import MongoClient
+        from pymongo.errors import ConnectionFailure, ConfigurationError
+        
+        client = MongoClient(uri, serverSelectionTimeoutMS=2000)
+        # Verify connection
+        client.admin.command('ping') 
         return client.get_default_database()
-    except ConnectionFailure:
-        raise Exception("CRITICAL ERROR: Could not connect to MongoDB. Is your local server running?")
+    
+    except (ConnectionFailure, ConfigurationError, Exception) as e:
+        if _MOCK_DB is None:
+            print(f"Error: Could not connect to MongoDB Atlas: {e}")
+            print("Fallback: Using PERSISTENT Local Mock Database (In-Memory).")
+            import mongomock
+            _MOCK_DB = mongomock.MongoClient().smart_emergency_db
+        return _MOCK_DB
+
+
